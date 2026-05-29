@@ -32,6 +32,11 @@ const adminSchema = new mongoose.Schema({
     trim: true,
     lowercase: true,
   },
+  organizationName: {
+    type: String,
+    required: false,
+    trim: true,
+  },
   name: {
     type: String,
     required: false,
@@ -48,6 +53,10 @@ const adminSchema = new mongoose.Schema({
       { text: 'Blue Option', videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4', color: '#2196f3' },
       { text: 'Purple Option', videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4', color: '#9c27b0' }
     ]
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
   },
   createdAt: {
     type: Date,

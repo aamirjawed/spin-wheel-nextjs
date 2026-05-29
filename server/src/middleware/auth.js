@@ -26,7 +26,7 @@ export const authenticateAdmin = async (req, res, next) => {
       email: adminEmail.trim().toLowerCase() 
     });
     
-    if (!admin) {
+    if (!admin || admin.isDeleted) {
       return res.status(401).json({ message: 'Unauthorized: Invalid email or token credentials' });
     }
     

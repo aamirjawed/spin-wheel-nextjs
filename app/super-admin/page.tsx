@@ -7,6 +7,8 @@ interface AdminAccount {
   _id: string;
   name: string;
   email: string;
+  organizationName?: string;
+  isDeleted?: boolean;
   token: string;
   options: any[];
   createdAt: string;
@@ -16,6 +18,7 @@ export default function SuperAdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [superAdminKey, setSuperAdminKey] = useState<string>('');
   const [adminEmail, setAdminEmail] = useState<string>('');
+  const [adminOrganizationName, setAdminOrganizationName] = useState<string>('');
   const [adminName, setAdminName] = useState<string>('');
   const [admins, setAdmins] = useState<AdminAccount[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -94,7 +97,7 @@ export default function SuperAdminDashboard() {
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminEmail.trim()) return;
+    if (!adminEmail.trim() || !adminOrganizationName.trim()) return;
 
     setIsLoading(true);
     try {
@@ -106,6 +109,7 @@ export default function SuperAdminDashboard() {
         },
         body: JSON.stringify({ 
           email: adminEmail.trim(), 
+          organizationName: adminOrganizationName.trim(),
           name: adminName.trim() || undefined 
         }),
       });
@@ -113,6 +117,7 @@ export default function SuperAdminDashboard() {
       if (res.ok) {
         showToast('Admin token generated successfully', 'success');
         setAdminEmail('');
+        setAdminOrganizationName('');
         setAdminName('');
         fetchAdmins(superAdminKey);
       } else {
@@ -128,7 +133,7 @@ export default function SuperAdminDashboard() {
   };
 
   const handleDeleteAdmin = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete admin "${name}"? All options and configurations will be permanently lost.`)) {
+    if (!confirm(`Are you sure you want to deactivate/delete admin "${name}"? The admin will lose access immediately, but their configuration data will be kept in the database.`)) {
       return;
     }
 
@@ -141,14 +146,39 @@ export default function SuperAdminDashboard() {
       });
 
       if (res.ok) {
-        showToast(`Admin "${name}" deleted`, 'info');
+        showToast(`Admin "${name}" deactivated`, 'info');
         fetchAdmins(superAdminKey);
       } else {
-        showToast('Failed to delete admin', 'error');
+        showToast('Failed to deactivate admin', 'error');
       }
     } catch (err) {
       console.error(err);
-      showToast('Error deleting admin', 'error');
+      showToast('Error deactivating admin', 'error');
+    }
+  };
+
+  const handleRestoreAdmin = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to restore and reactivate admin "${name}"? they will regain access immediately.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/super-admin/admins/${id}/restore`, {
+        method: 'POST',
+        headers: {
+          'x-super-admin-key': superAdminKey,
+        },
+      });
+
+      if (res.ok) {
+        showToast(`Admin "${name}" reactivated`, 'success');
+        fetchAdmins(superAdminKey);
+      } else {
+        showToast('Failed to reactivate admin', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error reactivating admin', 'error');
     }
   };
 
@@ -274,6 +304,18 @@ export default function SuperAdminDashboard() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Organization Name (Required)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Acme Corporation..."
+                  className="w-full px-4 py-2.5 bg-slate-950/80 border border-white/10 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/20 transition-all"
+                  value={adminOrganizationName}
+                  onChange={(e) => setAdminOrganizationName(e.target.value)}
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Admin Display Name (Optional)</label>
                 <input
                   type="text"
@@ -339,9 +381,19 @@ export default function SuperAdminDashboard() {
                       const adminUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/admin?email=${admin.email}&token=${admin.token}`;
 
                       return (
-                        <tr key={admin._id} className="hover:bg-white/2 transition-colors">
+                        <tr key={admin._id} className={`hover:bg-white/2 transition-colors ${admin.isDeleted ? 'opacity-50 bg-slate-950/30' : ''}`}>
                           <td className="p-4 font-semibold text-white">
                             {admin.name}
+                            {admin.organizationName && (
+                              <span className="ml-2 px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-semibold rounded border border-purple-500/30">
+                                {admin.organizationName}
+                              </span>
+                            )}
+                            {admin.isDeleted && (
+                              <span className="ml-2 px-2 py-0.5 bg-red-500/20 text-red-400 text-[10px] font-semibold rounded border border-red-500/30">
+                                Deactivated
+                              </span>
+                            )}
                             <div className="text-xxs font-mono text-cyan-400 mt-0.5">
                               {admin.email}
                             </div>
@@ -398,15 +450,27 @@ export default function SuperAdminDashboard() {
                                 </div>
                               </div>
 
-                              <button
-                                onClick={() => handleDeleteAdmin(admin._id, admin.name)}
-                                className="p-2 border border-red-500/20 hover:border-red-500 hover:bg-red-500/10 text-red-400 hover:text-white rounded-lg transition-all"
-                                title="Delete Admin Room"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
+                              {admin.isDeleted ? (
+                                <button
+                                  onClick={() => handleRestoreAdmin(admin._id, admin.name)}
+                                  className="p-2 border border-emerald-500/20 hover:border-emerald-500 hover:bg-emerald-500/10 text-emerald-400 hover:text-white rounded-lg transition-all"
+                                  title="Reactivate Admin"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89H18v3" />
+                                  </svg>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleDeleteAdmin(admin._id, admin.name)}
+                                  className="p-2 border border-red-500/20 hover:border-red-500 hover:bg-red-500/10 text-red-400 hover:text-white rounded-lg transition-all"
+                                  title="Deactivate Admin"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

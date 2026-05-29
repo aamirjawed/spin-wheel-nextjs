@@ -9,7 +9,7 @@ router.get('/:token', async (req, res) => {
   
   try {
     const admin = await Admin.findOne({ token });
-    if (!admin) {
+    if (!admin || admin.isDeleted) {
       return res.status(404).json({ message: 'Wheel configuration not found. Invalid token.' });
     }
     

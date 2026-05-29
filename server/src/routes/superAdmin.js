@@ -12,10 +12,14 @@ router.post('/verify', authenticateSuperAdmin, (req, res) => {
 
 // Create/Generate Admin Token
 router.post('/admins', authenticateSuperAdmin, async (req, res) => {
-  const { email, name } = req.body;
+  const { email, name, organizationName } = req.body;
   
   if (!email) {
     return res.status(400).json({ message: 'Admin email is required' });
+  }
+  
+  if (!organizationName) {
+    return res.status(400).json({ message: 'Organization name is required' });
   }
   
   try {
@@ -30,6 +34,7 @@ router.post('/admins', authenticateSuperAdmin, async (req, res) => {
     
     const newAdmin = new Admin({
       email: email.trim().toLowerCase(),
+      organizationName: organizationName.trim(),
       name: name?.trim() || email.split('@')[0],
       token,
     });
@@ -57,19 +62,44 @@ router.get('/admins', authenticateSuperAdmin, async (req, res) => {
   }
 });
 
-// Delete an Admin Token
+// Delete an Admin Token (Soft Delete)
 router.delete('/admins/:id', authenticateSuperAdmin, async (req, res) => {
   const { id } = req.params;
   
   try {
-    const deletedAdmin = await Admin.findByIdAndDelete(id);
+    const deletedAdmin = await Admin.findByIdAndUpdate(
+      id,
+      { isDeleted: true },
+      { new: true }
+    );
     if (!deletedAdmin) {
       return res.status(404).json({ message: 'Admin not found' });
     }
     
-    res.json({ message: 'Admin deleted successfully', admin: deletedAdmin });
+    res.json({ message: 'Admin soft-deleted successfully', admin: deletedAdmin });
   } catch (error) {
-    console.error('Error deleting admin:', error);
+    console.error('Error soft-deleting admin:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+// Restore a Soft-Deleted Admin Token
+router.post('/admins/:id/restore', authenticateSuperAdmin, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const restoredAdmin = await Admin.findByIdAndUpdate(
+      id,
+      { isDeleted: false },
+      { new: true }
+    );
+    if (!restoredAdmin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+    
+    res.json({ message: 'Admin restored successfully', admin: restoredAdmin });
+  } catch (error) {
+    console.error('Error restoring admin:', error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
