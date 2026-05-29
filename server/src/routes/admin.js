@@ -5,23 +5,54 @@ import fs from 'fs';
 import { authenticateAdmin } from '../middleware/auth.js';
 import Admin from '../models/Admin.js';
 
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+
 const router = express.Router();
 
-// Configure Multer Storage for Video Uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+// Check if Cloudinary configuration is provided in env
+const isCloudinaryConfigured = !!(
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET
+);
+
+let storage;
+
+if (isCloudinaryConfigured) {
+  // Configure Cloudinary
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+
+  storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: 'spin-wheel',
+      resource_type: 'video', // Needed for video upload support
+      allowed_formats: ['mp4', 'webm', 'ogg', 'mov', 'avi'],
+    },
+  });
+  console.log('Cloudinary storage initialized for video uploads (folder: spin-wheel).');
+} else {
+  // Fallback to local disk storage
+  storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = 'uploads';
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
     }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique name
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
-  }
-});
+  });
+  console.log('Cloudinary credentials missing. Using local storage fallback.');
+}
 
 // File filter to allow only videos
 const fileFilter = (req, file, cb) => {
@@ -96,15 +127,23 @@ router.post('/upload-video', authenticateAdmin, (req, res) => {
     }
     
     try {
-      // Return file path URL
-      const host = req.get('host');
-      const protocol = req.protocol;
-      const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+      let fileUrl;
+      let filename;
+      
+      if (isCloudinaryConfigured) {
+        fileUrl = req.file.path; // Cloudinary secure URL
+        filename = req.file.filename; // Cloudinary public_id / name
+      } else {
+        const host = req.get('host');
+        const protocol = req.protocol;
+        fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+        filename = req.file.filename;
+      }
       
       res.json({
         message: 'Video uploaded successfully',
         videoUrl: fileUrl,
-        filename: req.file.filename
+        filename: filename
       });
     } catch (error) {
       console.error('Error in video upload route:', error);

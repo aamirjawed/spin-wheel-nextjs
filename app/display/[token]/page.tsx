@@ -31,6 +31,28 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const angleRef = useRef(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Programmatically trigger video playback to bypass strict browser autoplay limits
+  useEffect(() => {
+    if (videoRef.current) {
+      if (displayState === 'video' && currentVideoUrl) {
+        // Set the source programmatically to prevent race conditions with React DOM rendering
+        videoRef.current.src = currentVideoUrl;
+        videoRef.current.load();
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.warn('Programmatic autoplay was blocked by browser:', err);
+          });
+        }
+      } else {
+        // Pause and clear source when video is closed
+        videoRef.current.pause();
+        videoRef.current.src = '';
+      }
+    }
+  }, [displayState, currentVideoUrl]);
 
   // Fetch wheel config on mount
   useEffect(() => {
@@ -297,18 +319,30 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
         </div>
       </div>
 
-      {/* Full-Screen Video Player */}
-      {displayState === 'video' && currentVideoUrl && (
-        <video
-          src={currentVideoUrl}
-          onEnded={handleVideoEnded}
-          muted={isMuted}
-          className="display-video-player visible"
-          controls={false}
-          autoPlay
-          playsInline
-        />
-      )}
+      {/* Full-Screen Video Player (Always in DOM to enable instant preloading and playback) */}
+      <video
+        ref={videoRef}
+        onEnded={handleVideoEnded}
+        muted={isMuted}
+        className={`display-video-player ${displayState === 'video' && currentVideoUrl ? 'visible' : ''}`}
+        controls={false}
+        autoPlay
+        playsInline
+      />
+
+      {/* Hidden preloading elements to load Cloudinary/CDN videos in browser cache */}
+      <div style={{ display: 'none' }} aria-hidden="true">
+        {options.map((opt, idx) => (
+          opt.videoUrl && (
+            <video
+              key={`preload-${idx}`}
+              src={opt.videoUrl}
+              preload="auto"
+              muted
+            />
+          )
+        ))}
+      </div>
 
       {/* Sync Status Badge */}
       <div className="connection-status">
