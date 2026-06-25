@@ -24,9 +24,9 @@ export default function Home() {
 
       {/* Main Grid Options */}
       <main className="max-w-6xl mx-auto w-full my-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        
+
         {/* Super Admin Access Card */}
-        <div className="glass-panel p-8 flex flex-col justify-between bg-slate-900/40 border border-white/5 hover:border-purple-500/30 transition-all rounded-2xl">
+        {/* <div className="glass-panel p-8 flex flex-col justify-between bg-slate-900/40 border border-white/5 hover:border-purple-500/30 transition-all rounded-2xl">
           <div>
             <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center justify-center mb-6">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -44,7 +44,7 @@ export default function Home() {
           >
             Launch Super Admin
           </Link>
-        </div>
+        </div> */}
 
         {/* Admin Workspace Access Card */}
         <div className="glass-panel p-8 flex flex-col justify-between bg-slate-900/40 border border-white/5 hover:border-cyan-500/30 transition-all rounded-2xl">
@@ -77,7 +77,7 @@ export default function Home() {
         </div>
 
         {/* System Architecture Flow Card */}
-        <div className="glass-panel p-8 flex flex-col justify-between bg-slate-900/40 border border-white/5 rounded-2xl lg:col-span-1 md:col-span-2">
+        {/* <div className="glass-panel p-8 flex flex-col justify-between bg-slate-900/40 border border-white/5 rounded-2xl lg:col-span-1 md:col-span-2">
           <div>
             <div className="w-12 h-12 rounded-xl bg-pink-500/10 border border-pink-500/30 text-pink-400 flex items-center justify-center mb-6">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -94,7 +94,7 @@ export default function Home() {
             <div><span className="text-purple-400 font-bold">2. Socket:</span> http://localhost:5000</div>
             <div><span className="text-pink-400 font-bold">3. Database:</span> MongoDB Community</div>
           </div>
-        </div>
+        </div> */}
 
       </main>
 
