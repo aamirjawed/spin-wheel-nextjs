@@ -25,7 +25,8 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
   const [selectedOptionText, setSelectedOptionText] = useState('');
   const [selectedOptionColor, setSelectedOptionColor] = useState('');
   const [statusText, setStatusText] = useState('');
-  const [isMuted, setIsMuted] = useState(true);
+  // Ref-based audio unlock: persists across renders, not reset by video.load()
+  const audioUnlockedRef = useRef(false);
   const [audioPromptVisible, setAudioPromptVisible] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -37,17 +38,19 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
   useEffect(() => {
     if (videoRef.current) {
       if (displayState === 'video' && currentVideoUrl) {
-        // Set the source programmatically to prevent race conditions with React DOM rendering
         videoRef.current.src = currentVideoUrl;
         videoRef.current.load();
+        // CRITICAL FIX: Explicitly set muted AFTER load() because load() resets
+        // the muted property back to the HTML attribute default, ignoring React's
+        // muted prop. We must set it imperatively every single time.
+        videoRef.current.muted = !audioUnlockedRef.current;
         const playPromise = videoRef.current.play();
         if (playPromise !== undefined) {
           playPromise.catch((err) => {
-            console.warn('Programmatic autoplay was blocked by browser:', err);
+            console.warn('Autoplay blocked:', err);
           });
         }
       } else {
-        // Pause and clear source when video is closed
         videoRef.current.pause();
         videoRef.current.src = '';
       }
@@ -233,10 +236,11 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
   };
 
   const enableAudio = () => {
-    setIsMuted(false);
+    // Mark as unlocked in ref - this persists across all future renders
+    audioUnlockedRef.current = true;
     setAudioPromptVisible(false);
 
-    // Unlock web audio context
+    // Unlock the Web Audio context with a silent sound (required by browsers)
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioContextClass) {
@@ -251,6 +255,11 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
       }
     } catch (e) {
       console.warn('AudioContext unlock failed', e);
+    }
+
+    // If a video is currently playing, immediately unmute it
+    if (videoRef.current && !videoRef.current.paused) {
+      videoRef.current.muted = false;
     }
   };
 
@@ -284,12 +293,25 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
   }
 
   return (
-    <div className="display-fullscreen" onClick={audioPromptVisible ? enableAudio : undefined}>
-      {/* Audio Unlock Notice Banner */}
+    <div className="display-fullscreen">
+      {/* ONE-TIME Audio Unlock Overlay — shown only on first load, never again */}
       {audioPromptVisible && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 bg-slate-950/90 border border-yellow-500/40 text-yellow-400 px-6 py-3 rounded-2xl text-sm font-semibold flex items-center gap-3 shadow-2xl backdrop-blur-xl animate-pulse cursor-pointer">
-          <span className="text-lg">🔊</span>
-          <span>Screen is muted. <strong className="underline text-yellow-300">Click anywhere</strong> to enable audio sync.</span>
+        <div
+          className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm cursor-pointer"
+          onClick={enableAudio}
+        >
+          <div className="flex flex-col items-center gap-6 animate-fade-in">
+            <div className="w-24 h-24 rounded-full bg-cyan-500/20 border-2 border-cyan-400/60 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
+              <span className="text-5xl">🔊</span>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-black text-white tracking-wide mb-2">Tap to Enable Audio</p>
+              <p className="text-slate-400 text-base">Click once — audio will work automatically for all videos after this.</p>
+            </div>
+            <div className="px-10 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-lg rounded-2xl shadow-lg shadow-cyan-500/30 transition-all">
+              Enable Audio
+            </div>
+          </div>
         </div>
       )}
 
@@ -319,14 +341,12 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
         </div>
       </div>
 
-      {/* Full-Screen Video Player (Always in DOM to enable instant preloading and playback) */}
+      {/* Full-Screen Video Player — muted prop intentionally omitted; controlled imperatively via ref */}
       <video
         ref={videoRef}
         onEnded={handleVideoEnded}
-        muted={isMuted}
         className={`display-video-player ${displayState === 'video' && currentVideoUrl ? 'visible' : ''}`}
         controls={false}
-        autoPlay
         playsInline
       />
 
