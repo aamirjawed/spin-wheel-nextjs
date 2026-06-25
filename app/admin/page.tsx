@@ -454,7 +454,25 @@ export default function AdminDashboard() {
             <div className="bg-slate-900/60 border border-white/10 p-6 rounded-2xl shadow-xl backdrop-blur-xl">
               <h2 className="text-xl font-bold text-white mb-2">Workspace Actions</h2>
               <p className="text-slate-400 text-xs mb-4">Save changes to publish edits immediately to all connected devices.</p>
-              
+
+              {/* Controller Settings toggle — inline */}
+              <div className="flex items-center justify-between p-3 bg-slate-950/60 border border-white/5 rounded-xl mb-3">
+                <div className="pr-2">
+                  <span className="block text-sm font-semibold text-white">Show Results on Controller</span>
+                  <span className="block text-[10px] text-slate-500">Show video/text result on mobile after spin.</span>
+                </div>
+                <button
+                  onClick={() => setShowResultOnWheelPage(!showResultOnWheelPage)}
+                  className={`shrink-0 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                    showResultOnWheelPage
+                      ? 'bg-purple-500/10 border-purple-500/30 text-purple-400'
+                      : 'bg-slate-800 border-white/10 text-slate-500'
+                  }`}
+                >
+                  {showResultOnWheelPage ? '🟢 On' : '🔴 Off'}
+                </button>
+              </div>
+
               <div className="flex flex-col gap-2">
                 <button
                   onClick={handleSaveConfig}
@@ -485,28 +503,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Controller Settings */}
-            <div className="bg-slate-900/60 border border-white/10 p-6 rounded-2xl shadow-xl backdrop-blur-xl">
-              <h2 className="text-xl font-bold text-white mb-2">Controller Settings</h2>
-              <p className="text-slate-400 text-xs mb-4">Control how the mobile/controller screen behaves during a spin.</p>
-              
-              <div className="flex items-center justify-between p-3.5 bg-slate-950/60 border border-white/5 rounded-xl">
-                <div className="pr-2">
-                  <span className="block text-sm font-semibold text-white">Show Results on Controller</span>
-                  <span className="block text-[10px] text-slate-500">Play video or show announcement on mobile right after spin.</span>
-                </div>
-                <button
-                  onClick={() => setShowResultOnWheelPage(!showResultOnWheelPage)}
-                  className={`shrink-0 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
-                    showResultOnWheelPage
-                      ? 'bg-purple-500/10 border-purple-500/30 text-purple-400'
-                      : 'bg-slate-800 border-white/10 text-slate-500'
-                  }`}
-                >
-                  {showResultOnWheelPage ? '🟢 Enabled' : '🔴 Disabled'}
-                </button>
-              </div>
-            </div>
+
           </div>
 
           {/* Options Management */}
