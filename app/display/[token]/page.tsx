@@ -8,6 +8,9 @@ interface Option {
   text: string;
   videoUrl: string;
   color: string;
+  showVideo?: boolean;
+  isVisible?: boolean;
+  displayText?: string;  // Custom message shown in text mode
 }
 
 export default function DisplayPage({ params }: { params: Promise<{ token: string }> }) {
@@ -18,12 +21,13 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
   const [options, setOptions] = useState<Option[]>([]);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Display states: 'standby' | 'spinning' | 'video'
-  const [displayState, setDisplayState] = useState<'standby' | 'spinning' | 'video'>('standby');
-  const displayStateRef = useRef<'standby' | 'spinning' | 'video'>('standby');
+  // Display states: 'standby' | 'spinning' | 'video' | 'text'
+  const [displayState, setDisplayState] = useState<'standby' | 'spinning' | 'video' | 'text'>('standby');
+  const displayStateRef = useRef<'standby' | 'spinning' | 'video' | 'text'>('standby');
   const [currentVideoUrl, setCurrentVideoUrl] = useState('');
   const [selectedOptionText, setSelectedOptionText] = useState('');
   const [selectedOptionColor, setSelectedOptionColor] = useState('');
+  const [selectedDisplayText, setSelectedDisplayText] = useState(''); // custom message for text mode
   const [statusText, setStatusText] = useState('');
   // Ref-based audio unlock: persists across renders, not reset by video.load()
   const audioUnlockedRef = useRef(false);
@@ -218,9 +222,20 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
         setSelectedOptionColor(option.color);
         setStatusText(`Landed on: ${option.text}`);
 
-        setCurrentVideoUrl(option.videoUrl);
-        displayStateRef.current = 'video';
-        setDisplayState('video');
+        if (option.showVideo === false) {
+          // Text-only mode: show announcement, no video
+          // displayText takes priority over text (wheel label)
+          setSelectedDisplayText(option.displayText?.trim() || option.text);
+          setCurrentVideoUrl('');
+          displayStateRef.current = 'text';
+          setDisplayState('text');
+        } else {
+          // Video mode: play the video
+          setSelectedDisplayText('');
+          setCurrentVideoUrl(option.videoUrl);
+          displayStateRef.current = 'video';
+          setDisplayState('video');
+        }
       });
 
       // Reset command from admin
@@ -242,6 +257,8 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
     setStatusText('Waiting for next spin...');
     setCurrentVideoUrl('');
     setSelectedOptionText('');
+    setIsVideoPaused(false);
+    setIsVideoMuted(false);
   };
 
   const enableAudio = () => {
@@ -369,7 +386,7 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
       )}
 
       {/* Standby & Spinning Screen */}
-      <div className={`display-standby ${displayState === 'video' ? 'hidden' : ''} flex flex-col items-center justify-center min-h-screen text-center p-6 w-full`}>
+      <div className={`display-standby ${displayState === 'video' || displayState === 'text' ? 'hidden' : ''} flex flex-col items-center justify-center min-h-screen text-center p-6 w-full`}>
         {/* Large Centered Company Branding */}
         <div className="my-auto max-w-4xl flex flex-col items-center gap-6 animate-fade-in">
           <h1 className="text-6xl md:text-8xl font-black tracking-widest text-white uppercase glow-text-primary select-none transition-all duration-300 hover:scale-105">
@@ -404,6 +421,48 @@ export default function DisplayPage({ params }: { params: Promise<{ token: strin
         controls={false}
         playsInline
       />
+
+      {/* Text-Only Result Overlay — shown when showVideo is false */}
+      {displayState === 'text' && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 5,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            background: `radial-gradient(circle at center, ${selectedOptionColor}22 0%, #030308 70%)`,
+          }}
+        >
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <p style={{ color: '#94a3b8', fontSize: '1.1rem', fontWeight: 600, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '1.5rem' }}>
+              🎉 Winner
+            </p>
+            <h2
+              style={{
+                fontSize: 'clamp(3rem, 12vw, 9rem)',
+                fontWeight: 900,
+                color: selectedOptionColor,
+                textShadow: `0 0 60px ${selectedOptionColor}88, 0 0 120px ${selectedOptionColor}44`,
+                lineHeight: 1.1,
+                letterSpacing: '-0.02em',
+                margin: 0,
+              }}
+            >
+              {selectedDisplayText || selectedOptionText}
+            </h2>
+            <button
+              onClick={resetToStandby}
+              style={{
+                marginTop: '3rem', padding: '0.75rem 2.5rem',
+                background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                color: '#cbd5e1', borderRadius: '9999px', fontSize: '0.9rem',
+                fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+              }}
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Video Controls — fixed overlay, only visible when video is playing */}
       {displayState === 'video' && currentVideoUrl && (

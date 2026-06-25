@@ -3,11 +3,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { API_BASE_URL, SOCKET_URL } from '../../config';
+import RegisterForm from '../../components/RegisterForm';
 
 interface Option {
   text: string;
   videoUrl: string;
   color: string;
+  showVideo?: boolean;
+  isVisible?: boolean;
+  isWinningOption?: boolean;
 }
 
 export default function WheelPage({ params }: { params: Promise<{ token: string }> }) {
@@ -18,6 +22,23 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
   const [options, setOptions] = useState<Option[]>([]);
   const [selectedOption, setSelectedOption] = useState<Option | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isRegistered, setIsRegistered] = useState(false);
+
+  const handleRegisterSubmit = (data: { name: string; phoneNumber: string }) => {
+    // Optionally we can store it or just set to true to unlock the wheel
+    setIsRegistered(true);
+  };
+
+  const handleWheelReset = () => {
+    if (socketRef.current) {
+      socketRef.current.emit('display:reset');
+    }
+    setSelectedOption(null);
+    setIsRegistered(false);
+  };
+
+  // Only render options that are marked visible
+  const visibleOptions = options.filter(o => o.isVisible !== false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -43,7 +64,7 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
           const data = await res.json();
           setWheelName(data.name);
           setOptions(data.options || []);
-          stateRef.current.optionsCount = data.options?.length || 0;
+          stateRef.current.optionsCount = (data.options || []).filter((o: Option) => o.isVisible !== false).length;
           setLoading(false);
         } else {
           const data = await res.json().catch(() => ({}));
@@ -80,7 +101,11 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
 
       socketRef.current.on('wheel:updated', (newOptions: Option[]) => {
         setOptions(newOptions);
-        stateRef.current.optionsCount = newOptions.length;
+        stateRef.current.optionsCount = newOptions.filter(o => o.isVisible !== false).length;
+      });
+
+      socketRef.current.on('display:reseted', () => {
+        setIsRegistered(false);
       });
 
       return () => {
@@ -94,7 +119,7 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
   // Draw the wheel on canvas
   const drawWheel = () => {
     const canvas = canvasRef.current;
-    if (!canvas || options.length === 0) return;
+    if (!canvas || visibleOptions.length === 0) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -107,12 +132,12 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
 
     ctx.clearRect(0, 0, width, height);
 
-    const numSlices = options.length;
+    const numSlices = visibleOptions.length;
     const sliceAngle = (2 * Math.PI) / numSlices;
     const currentAngle = stateRef.current.angle;
 
     // Draw slices
-    options.forEach((opt, idx) => {
+    visibleOptions.forEach((opt, idx) => {
       const startAngle = currentAngle + idx * sliceAngle;
       const endAngle = startAngle + sliceAngle;
 
@@ -176,21 +201,12 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
 
   // Determine which option is selected
   const getSelectedOption = (angle: number): { index: number; option: Option } => {
-    const numSlices = options.length;
+    const numSlices = visibleOptions.length;
     const sliceAngle = (2 * Math.PI) / numSlices;
-    
-    // Top marker is at 270 deg (1.5 * Math.PI)
-    // Find the relative angle on the wheel pointing to the marker
     let relativeAngle = (1.5 * Math.PI - angle) % (2 * Math.PI);
-    if (relativeAngle < 0) {
-      relativeAngle += 2 * Math.PI;
-    }
-    
+    if (relativeAngle < 0) relativeAngle += 2 * Math.PI;
     const index = Math.floor(relativeAngle / sliceAngle) % numSlices;
-    return {
-      index,
-      option: options[index]
-    };
+    return { index, option: visibleOptions[index] };
   };
 
   // Inertia physics animation loop
@@ -324,6 +340,54 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
 
     const minVelocityThreshold = 0.015;
     if (Math.abs(state.velocity) > minVelocityThreshold) {
+      // Check if the natural stop would land on a non-winning option
+      const direction = Math.sign(state.velocity);
+      const decelerationMultiplier = 0.985 / 0.015;
+      
+      let predictedFinalAngle = (state.angle + state.velocity * decelerationMultiplier) % (2 * Math.PI);
+      if (predictedFinalAngle < 0) predictedFinalAngle += 2 * Math.PI;
+
+      const normalSelection = getSelectedOption(predictedFinalAngle);
+
+      if (normalSelection.option && normalSelection.option.isWinningOption === false) {
+        const winningItems = visibleOptions
+          .map((o, idx) => ({ option: o, idx }))
+          .filter(item => item.option.isWinningOption !== false);
+
+        if (winningItems.length > 0) {
+          let closestItem = winningItems[0];
+          let minDistance = Infinity;
+          for (const item of winningItems) {
+            let dist = Math.abs(item.idx - normalSelection.index);
+            if (dist > visibleOptions.length / 2) {
+              dist = visibleOptions.length - dist;
+            }
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestItem = item;
+            }
+          }
+
+          const numSlices = visibleOptions.length;
+          const sliceAngle = (2 * Math.PI) / numSlices;
+          const targetRelativeAngle = (closestItem.idx + 0.5) * sliceAngle;
+          
+          let targetAngle = (1.5 * Math.PI - targetRelativeAngle) % (2 * Math.PI);
+          if (targetAngle < 0) targetAngle += 2 * Math.PI;
+
+          let angleDiff = targetAngle - state.angle;
+          if (direction > 0) {
+            while (angleDiff < 0) angleDiff += 2 * Math.PI;
+            const totalDistance = angleDiff + 3 * (2 * Math.PI);
+            state.velocity = totalDistance / decelerationMultiplier;
+          } else {
+            while (angleDiff > 0) angleDiff -= 2 * Math.PI;
+            const totalDistance = angleDiff - 3 * (2 * Math.PI);
+            state.velocity = totalDistance / decelerationMultiplier;
+          }
+        }
+      }
+
       // Emit starting automatic spin
       if (socketRef.current) {
         socketRef.current.emit('wheel:spin', { velocity: state.velocity });
@@ -333,7 +397,44 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
     } else {
       // Stopped without high speed (just manual drag placement)
       state.velocity = 0;
-      const selection = getSelectedOption(state.angle);
+      let selection = getSelectedOption(state.angle);
+      
+      if (selection.option && selection.option.isWinningOption === false) {
+        const winningItems = visibleOptions
+          .map((o, idx) => ({ option: o, idx }))
+          .filter(item => item.option.isWinningOption !== false);
+
+        if (winningItems.length > 0) {
+          let closestItem = winningItems[0];
+          let minDistance = Infinity;
+          for (const item of winningItems) {
+            let dist = Math.abs(item.idx - selection.index);
+            if (dist > visibleOptions.length / 2) {
+              dist = visibleOptions.length - dist;
+            }
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestItem = item;
+            }
+          }
+
+          const numSlices = visibleOptions.length;
+          const sliceAngle = (2 * Math.PI) / numSlices;
+          const targetRelativeAngle = (closestItem.idx + 0.5) * sliceAngle;
+          
+          let targetAngle = (1.5 * Math.PI - targetRelativeAngle) % (2 * Math.PI);
+          if (targetAngle < 0) targetAngle += 2 * Math.PI;
+
+          state.angle = targetAngle;
+          drawWheel();
+          
+          if (socketRef.current) {
+            socketRef.current.emit('wheel:rotate', { angle: state.angle });
+          }
+          selection = { index: closestItem.idx, option: closestItem.option };
+        }
+      }
+
       setSelectedOption(selection.option);
       if (socketRef.current) {
         socketRef.current.emit('wheel:stop', {
@@ -400,6 +501,14 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
     );
   }
 
+  if (!isRegistered) {
+    return (
+      <div className="spin-body min-h-screen flex items-center justify-center p-4">
+        <RegisterForm onSubmit={handleRegisterSubmit} wheelName={wheelName} token={token} />
+      </div>
+    );
+  }
+
   return (
     <div className="spin-body min-h-screen flex flex-col justify-between items-center py-8 px-4 select-none">
       {/* Top Header */}
@@ -431,13 +540,21 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
       </div>
 
       {/* Selected Option Display */}
-      <div className="mb-6 flex flex-col items-center">
+      <div className="mb-6 flex flex-col items-center gap-4">
         {selectedOption ? (
-          <div className="wheel-selected-display animate-pulse">
-            <div className="wheel-selected-title">LANDED ON</div>
-            <div className="wheel-selected-value font-extrabold" style={{ color: selectedOption.color }}>
-              {selectedOption.text}
+          <div className="flex flex-col items-center gap-3">
+            <div className="wheel-selected-display animate-pulse">
+              <div className="wheel-selected-title">LANDED ON</div>
+              <div className="wheel-selected-value font-extrabold text-center" style={{ color: selectedOption.color }}>
+                {selectedOption.text}
+              </div>
             </div>
+            <button
+              onClick={handleWheelReset}
+              className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 border border-white/10 text-slate-300 hover:text-white rounded-xl text-xs font-semibold uppercase tracking-wider transition-all shadow-md active:scale-95"
+            >
+              Reset for Next User
+            </button>
           </div>
         ) : (
           <div className="py-5 text-slate-500 font-medium text-sm text-center">

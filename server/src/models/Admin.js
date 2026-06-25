@@ -8,13 +8,35 @@ const optionSchema = new mongoose.Schema({
   },
   videoUrl: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
+    default: '',
   },
   color: {
     type: String,
     required: true,
     default: '#FF5733',
+  },
+  // When false, the display shows a text announcement instead of playing the video
+  showVideo: {
+    type: Boolean,
+    default: true,
+  },
+  // Custom message shown on the display screen in text mode (falls back to `text` if empty)
+  displayText: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  // When false, this option is hidden from the wheel (not selectable)
+  isVisible: {
+    type: Boolean,
+    default: true,
+  },
+  // When false, this option cannot be landed on (it is filtered out of winning candidates)
+  isWinningOption: {
+    type: Boolean,
+    default: true,
   },
 });
 

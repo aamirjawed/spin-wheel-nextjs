@@ -6,9 +6,13 @@ import { API_BASE_URL, SOCKET_URL } from '../config';
 
 interface Option {
   _id?: string;
-  text: string;
-  videoUrl: string;
+  text: string;           // Label shown on the wheel slice
+  videoUrl: string;       // Video played when this option wins
+  displayText: string;    // Custom message shown on screen in text mode
   color: string;
+  showVideo: boolean;
+  isVisible: boolean;
+  isWinningOption?: boolean;
 }
 
 export default function AdminDashboard() {
@@ -150,7 +154,11 @@ export default function AdminDashboard() {
       {
         text: `Option ${options.length + 1}`,
         videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+        displayText: '',
         color: newColor,
+        showVideo: true,
+        isVisible: true,
+        isWinningOption: true,
       }
     ]);
   };
@@ -167,7 +175,7 @@ export default function AdminDashboard() {
   };
 
   // Update Option field
-  const handleOptionChange = (index: number, field: keyof Option, value: string) => {
+  const handleOptionChange = (index: number, field: keyof Option, value: any) => {
     const newOptions = [...options];
     newOptions[index] = {
       ...newOptions[index],
@@ -489,84 +497,156 @@ export default function AdminDashboard() {
 
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
               {options.map((opt, idx) => (
-                <div
-                  key={idx}
-                  className="bg-slate-950/60 border border-white/5 p-4 rounded-xl flex flex-col md:flex-row items-stretch md:items-center gap-4 transition-all hover:border-white/10"
+                <div key={idx}
+                  className={`border rounded-2xl overflow-hidden transition-all ${
+                    opt.isVisible === false
+                      ? 'border-white/5 opacity-50'
+                      : 'border-white/10 bg-slate-950/60'
+                  }`}
                 >
-                  {/* Color Selector */}
-                  <div className="flex items-center gap-3">
-                    <div className="text-slate-500 font-mono text-sm w-5">{idx + 1}.</div>
-                    <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-white/20 shadow-md">
+                  {/* ── Header row: number + color + wheel label + visibility + delete ── */}
+                  <div className="flex items-center gap-3 p-4">
+                    <span className="text-slate-500 font-mono text-sm w-5 shrink-0">{idx + 1}.</span>
+
+                    {/* Color Swatch */}
+                    <div className="relative w-9 h-9 rounded-lg overflow-hidden border border-white/20 shrink-0">
                       <input
                         type="color"
                         value={opt.color}
                         onChange={(e) => handleOptionChange(idx, 'color', e.target.value)}
-                        className="absolute inset-[-10px] w-[200%] h-[200%] cursor-pointer border-none bg-transparent"
+                        className="absolute inset-[-8px] w-[200%] h-[200%] cursor-pointer border-none"
                       />
                     </div>
-                  </div>
 
-                  {/* Text Input */}
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      value={opt.text}
-                      onChange={(e) => handleOptionChange(idx, 'text', e.target.value)}
-                      placeholder="Slice Display text"
-                      className="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400"
-                    />
-                  </div>
-
-                  {/* Video URL/Upload */}
-                  <div className="flex-[2] flex flex-col gap-2">
-                    <input
-                      type="text"
-                      value={opt.videoUrl}
-                      onChange={(e) => handleOptionChange(idx, 'videoUrl', e.target.value)}
-                      placeholder="Video URL (e.g. mp4 link)"
-                      className="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-lg text-white text-xs placeholder-slate-600 focus:outline-none focus:border-cyan-400 font-mono"
-                    />
-                    
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => fileInputRefs.current[idx]?.click()}
-                        disabled={uploadingIndex !== null}
-                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 rounded font-semibold border border-white/5 transition-all flex items-center gap-1.5"
-                      >
-                        <svg className="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                        Upload Video
-                      </button>
-                      
+                    {/* Wheel label */}
+                    <div className="flex-1">
+                      <label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">Wheel Label (shown on the spin wheel)</label>
                       <input
-                        type="file"
-                        ref={(el) => { fileInputRefs.current[idx] = el; }}
-                        onChange={(e) => handleVideoUpload(idx, e)}
-                        accept="video/*"
-                        className="hidden"
+                        type="text"
+                        value={opt.text}
+                        onChange={(e) => handleOptionChange(idx, 'text', e.target.value)}
+                        placeholder="e.g. Grand Prize"
+                        className="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400 text-sm"
                       />
-
-                      {uploadingIndex === idx && (
-                        <span className="text-xs text-cyan-400 font-semibold animate-pulse">
-                          {uploadProgress}
-                        </span>
-                      )}
                     </div>
-                  </div>
 
-                  {/* Delete Option */}
-                  <div className="flex items-center justify-end">
+                    {/* Visibility toggle */}
+                    <button
+                      onClick={() => handleOptionChange(idx, 'isVisible', !opt.isVisible)}
+                      title={opt.isVisible !== false ? 'Click to hide from wheel' : 'Click to show on wheel'}
+                      className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                        opt.isVisible !== false
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          : 'bg-slate-800 border-white/10 text-slate-500'
+                      }`}
+                    >
+                      {opt.isVisible !== false ? '👁 On Wheel' : '🙈 Hidden'}
+                    </button>
+
+                    {/* Winner toggle */}
+                    <button
+                      onClick={() => handleOptionChange(idx, 'isWinningOption', opt.isWinningOption === false ? true : false)}
+                      title={opt.isWinningOption !== false ? 'Click to prevent this option from winning' : 'Click to allow this option to win'}
+                      className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                        opt.isWinningOption !== false
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                          : 'bg-slate-800 border-white/10 text-slate-500'
+                      }`}
+                    >
+                      {opt.isWinningOption !== false ? '🏆 Can Win' : '❌ No Win'}
+                    </button>
+
+                    {/* Delete */}
                     <button
                       onClick={() => handleRemoveOption(idx)}
                       disabled={options.length <= 2}
-                      className="p-2 border border-red-500/20 hover:border-red-500 hover:bg-red-500/10 text-red-400 disabled:opacity-30 disabled:pointer-events-none rounded-lg transition-all"
+                      className="shrink-0 p-2 border border-red-500/20 hover:border-red-500 hover:bg-red-500/10 text-red-400 disabled:opacity-30 disabled:pointer-events-none rounded-lg transition-all"
                       title="Remove option"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
+                  </div>
+
+                  {/* ── Display mode row ── */}
+                  <div className="border-t border-white/5 px-4 py-3 bg-slate-900/40">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-3">When this option wins, the display screen shows:</p>
+
+                    {/* Toggle buttons */}
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        onClick={() => handleOptionChange(idx, 'showVideo', true)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
+                          opt.showVideo !== false
+                            ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/40'
+                            : 'bg-transparent border-white/10 text-slate-500 hover:border-white/20'
+                        }`}
+                      >
+                        🎬 Video
+                      </button>
+                      <button
+                        onClick={() => handleOptionChange(idx, 'showVideo', false)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${
+                          opt.showVideo === false
+                            ? 'bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-900/40'
+                            : 'bg-transparent border-white/10 text-slate-500 hover:border-white/20'
+                        }`}
+                      >
+                        📝 Text Message
+                      </button>
+                    </div>
+
+                    {/* Video mode: URL + upload */}
+                    {opt.showVideo !== false && (
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[10px] text-slate-500 uppercase tracking-widest">Video URL or upload a file</label>
+                        <input
+                          type="text"
+                          value={opt.videoUrl}
+                          onChange={(e) => handleOptionChange(idx, 'videoUrl', e.target.value)}
+                          placeholder="https://... (paste a video URL)"
+                          className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-white text-xs placeholder-slate-600 focus:outline-none focus:border-purple-400 font-mono"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => fileInputRefs.current[idx]?.click()}
+                            disabled={uploadingIndex !== null}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 rounded-lg font-semibold border border-white/5 transition-all flex items-center gap-1.5"
+                          >
+                            <svg className="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            Upload Video File
+                          </button>
+                          <input
+                            type="file"
+                            ref={(el) => { fileInputRefs.current[idx] = el; }}
+                            onChange={(e) => handleVideoUpload(idx, e)}
+                            accept="video/*"
+                            className="hidden"
+                          />
+                          {uploadingIndex === idx && (
+                            <span className="text-xs text-cyan-400 font-semibold animate-pulse">{uploadProgress}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Text mode: display message */}
+                    {opt.showVideo === false && (
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[10px] text-cyan-400 uppercase tracking-widest">Message shown on the display screen</label>
+                        <textarea
+                          value={(opt as any).displayText || ''}
+                          onChange={(e) => handleOptionChange(idx, 'displayText', e.target.value)}
+                          placeholder={`e.g. Congratulations! You won ${opt.text}!`}
+                          rows={2}
+                          className="w-full px-3 py-2 bg-slate-950 border border-cyan-500/30 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:border-cyan-400 resize-none"
+                        />
+                        <p className="text-[10px] text-slate-500">This message will appear in large text on the display screen when this option wins. Leave blank to show the wheel label instead.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
