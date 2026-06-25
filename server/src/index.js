@@ -23,10 +23,43 @@ const app = express();
 const server = http.createServer(app);
 
 // Configure CORS
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000',
+  'https://spin-wheel-nextjs.vercel.app'
+];
+
+if (process.env.FRONTEND_URL) {
+  const envOrigins = process.env.FRONTEND_URL.split(',').map(o => o.trim());
+  envOrigins.forEach(o => {
+    if (o && !allowedOrigins.includes(o)) {
+      allowedOrigins.push(o);
+    }
+  });
+}
+
+const checkOrigin = (origin, callback) => {
+  // Allow requests with no origin (like mobile apps, curl, postman)
+  if (!origin) return callback(null, true);
+  
+  const isAllowed = allowedOrigins.includes(origin) || 
+                    origin.endsWith('.vercel.app') || 
+                    /^http:\/\/localhost:\d+$/.test(origin) ||
+                    /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+                    
+  if (isAllowed) {
+    callback(null, true);
+  } else {
+    callback(null, false);
+  }
+};
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  origin: checkOrigin,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-super-admin-key', 'x-admin-token', 'x-admin-email']
 };
 
 app.use(cors(corsOptions));
@@ -50,7 +83,7 @@ app.get('/health', (req, res) => {
 // Configure Socket.io
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: checkOrigin,
     methods: ['GET', 'POST'],
     credentials: true,
   },
