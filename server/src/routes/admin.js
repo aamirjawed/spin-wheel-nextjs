@@ -83,7 +83,7 @@ router.get('/me', authenticateAdmin, (req, res) => {
 
 // Update Wheel Options
 router.put('/options', authenticateAdmin, async (req, res) => {
-  const { options } = req.body;
+  const { options, showResultOnWheelPage } = req.body;
   
   if (!Array.isArray(options)) {
     return res.status(400).json({ message: 'Options must be an array' });
@@ -99,16 +99,26 @@ router.put('/options', authenticateAdmin, async (req, res) => {
   try {
     const admin = await Admin.findById(req.admin._id);
     admin.options = options;
+    if (typeof showResultOnWheelPage === 'boolean') {
+      admin.showResultOnWheelPage = showResultOnWheelPage;
+    }
     await admin.save();
     
     // Broadcast the update event to WebSocket clients in the admin's room
     // The socket reference can be accessed via req.app.get('io') if set
     const io = req.app.get('io');
     if (io) {
-      io.to(admin.token).emit('wheel:updated', admin.options);
+      io.to(admin.token).emit('wheel:updated', {
+        options: admin.options,
+        showResultOnWheelPage: admin.showResultOnWheelPage
+      });
     }
     
-    res.json({ message: 'Options updated successfully', options: admin.options });
+    res.json({
+      message: 'Options updated successfully',
+      options: admin.options,
+      showResultOnWheelPage: admin.showResultOnWheelPage
+    });
   } catch (error) {
     console.error('Error updating options:', error);
     res.status(500).json({ message: 'Internal Server Error' });

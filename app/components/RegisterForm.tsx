@@ -17,8 +17,8 @@ export default function RegisterForm({ onSubmit, wheelName, token }: RegisterFor
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    // Allow only digits (no characters)
-    const digitsOnly = val.replace(/\D/g, '');
+    // Allow only digits, cap at exactly 10
+    const digitsOnly = val.replace(/\D/g, '').slice(0, 10);
     setPhoneNumber(digitsOnly);
   };
 
@@ -31,8 +31,8 @@ export default function RegisterForm({ onSubmit, wheelName, token }: RegisterFor
       return;
     }
 
-    if (phoneNumber.length < 10) {
-      setError('Phone number must be at least 10 digits');
+    if (phoneNumber.length !== 10) {
+      setError('Phone number must be exactly 10 digits');
       return;
     }
 
@@ -106,13 +106,15 @@ export default function RegisterForm({ onSubmit, wheelName, token }: RegisterFor
               id="phone-input"
               type="text"
               inputMode="numeric"
-              pattern="[0-9]*"
+              pattern="[0-9]{10}"
+              maxLength={10}
               value={phoneNumber}
               onChange={handlePhoneChange}
               placeholder="Enter 10-digit number"
               className="w-full px-4 py-3 bg-slate-950 border border-white/10 rounded-2xl text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all text-sm font-mono"
               required
             />
+            <p className="mt-1 text-[10px] text-slate-500">{phoneNumber.length}/10 digits</p>
           </div>
 
           {error && (

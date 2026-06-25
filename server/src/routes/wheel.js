@@ -21,8 +21,8 @@ router.post('/:token/register', async (req, res) => {
       return res.status(400).json({ message: 'Name is required.' });
     }
 
-    if (!phoneNumber || !/^\d+$/.test(phoneNumber) || phoneNumber.length < 10) {
-      return res.status(400).json({ message: 'A valid phone number of at least 10 digits is required.' });
+    if (!phoneNumber || !/^\d+$/.test(phoneNumber) || phoneNumber.length !== 10) {
+      return res.status(400).json({ message: 'Phone number must be exactly 10 digits.' });
     }
 
     // 3. Create and save registration
@@ -51,10 +51,11 @@ router.get('/:token', async (req, res) => {
       return res.status(404).json({ message: 'Wheel configuration not found. Invalid token.' });
     }
     
-    // Return only name and options (excluding internal fields if any)
+    // Return only name, options and controller settings
     res.json({
       name: admin.name,
-      options: admin.options
+      options: admin.options,
+      showResultOnWheelPage: admin.showResultOnWheelPage ?? true
     });
   } catch (error) {
     console.error('Error fetching public wheel:', error);

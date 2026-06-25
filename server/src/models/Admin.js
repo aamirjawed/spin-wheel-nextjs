@@ -80,6 +80,10 @@ const adminSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  showResultOnWheelPage: {
+    type: Boolean,
+    default: true,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

@@ -12,6 +12,7 @@ interface Option {
   showVideo?: boolean;
   isVisible?: boolean;
   isWinningOption?: boolean;
+  displayText?: string;
 }
 
 export default function WheelPage({ params }: { params: Promise<{ token: string }> }) {
@@ -23,6 +24,7 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
   const [selectedOption, setSelectedOption] = useState<Option | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [showResultOnWheelPage, setShowResultOnWheelPage] = useState(true);
 
   const handleRegisterSubmit = (data: { name: string; phoneNumber: string }) => {
     // Optionally we can store it or just set to true to unlock the wheel
@@ -64,6 +66,7 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
           const data = await res.json();
           setWheelName(data.name);
           setOptions(data.options || []);
+          setShowResultOnWheelPage(data.showResultOnWheelPage !== false);
           stateRef.current.optionsCount = (data.options || []).filter((o: Option) => o.isVisible !== false).length;
           setLoading(false);
         } else {
@@ -99,9 +102,17 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
         setIsConnected(false);
       });
 
-      socketRef.current.on('wheel:updated', (newOptions: Option[]) => {
-        setOptions(newOptions);
-        stateRef.current.optionsCount = newOptions.filter(o => o.isVisible !== false).length;
+      socketRef.current.on('wheel:updated', (data: any) => {
+        if (data && typeof data === 'object' && 'options' in data) {
+          setOptions(data.options);
+          stateRef.current.optionsCount = data.options.filter((o: Option) => o.isVisible !== false).length;
+          if ('showResultOnWheelPage' in data) {
+            setShowResultOnWheelPage(data.showResultOnWheelPage !== false);
+          }
+        } else if (Array.isArray(data)) {
+          setOptions(data);
+          stateRef.current.optionsCount = data.filter(o => o.isVisible !== false).length;
+        }
       });
 
       socketRef.current.on('display:reseted', () => {
@@ -194,10 +205,18 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
     ctx.stroke();
   };
 
-  // Re-draw wheel on angle change
+  // Re-draw wheel when options or loading state changes
   useEffect(() => {
     drawWheel();
   }, [options, loading]);
+
+  // Re-draw wheel when user registers — canvas just mounted after conditional render
+  useEffect(() => {
+    if (isRegistered) {
+      const timer = setTimeout(() => drawWheel(), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isRegistered]);
 
   // Determine which option is selected
   const getSelectedOption = (angle: number): { index: number; option: Option } => {
@@ -568,6 +587,61 @@ export default function WheelPage({ params }: { params: Promise<{ token: string 
         <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
         <span>{isConnected ? 'Sync Connected' : 'Sync Disconnected'}</span>
       </div>
+
+      {/* Result Announcement Overlay */}
+      {showResultOnWheelPage && selectedOption && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4 animate-fade-in">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col items-center p-6 text-center">
+            
+            {/* Header */}
+            <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold rounded-full uppercase tracking-wider mb-4 animate-pulse">
+              🎉 Congratulations!
+            </span>
+
+            {selectedOption.showVideo !== false ? (
+              /* Video Winner Mode */
+              <div className="w-full flex flex-col items-center">
+                <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 border border-white/5 mb-6">
+                  <video
+                    src={selectedOption.videoUrl}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    playsInline
+                    controls
+                  />
+                </div>
+                <h3 className="text-2xl font-black text-white tracking-tight mb-1">
+                  You won {selectedOption.text}!
+                </h3>
+              </div>
+            ) : (
+              /* Text Announcement Winner Mode */
+              <div className="w-full py-8 flex flex-col items-center">
+                <h2
+                  className="text-4xl md:text-5xl font-black tracking-tight mb-4"
+                  style={{
+                    color: selectedOption.color,
+                    textShadow: `0 0 30px ${selectedOption.color}40`,
+                  }}
+                >
+                  {selectedOption.displayText || selectedOption.text}
+                </h2>
+                <p className="text-slate-400 text-sm max-w-xs mb-2">
+                  You successfully landed on this option!
+                </p>
+              </div>
+            )}
+
+            {/* Reset Button */}
+            <button
+              onClick={handleWheelReset}
+              className="mt-6 w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all text-sm uppercase tracking-wider"
+            >
+              Reset for Next User
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

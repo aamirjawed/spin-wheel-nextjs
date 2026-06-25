@@ -26,6 +26,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [showResultOnWheelPage, setShowResultOnWheelPage] = useState<boolean>(true);
   
   // File upload state for specific indices
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
@@ -103,6 +104,7 @@ export default function AdminDashboard() {
         setToken(testToken);
         setAdminName(data.admin.name);
         setOptions(data.admin.options || []);
+        setShowResultOnWheelPage(data.admin.showResultOnWheelPage !== false);
         localStorage.setItem('admin_email', testEmail.trim().toLowerCase());
         localStorage.setItem('admin_token', testToken);
         
@@ -238,12 +240,13 @@ export default function AdminDashboard() {
           'x-admin-email': email,
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ options }),
+        body: JSON.stringify({ options, showResultOnWheelPage }),
       });
 
       if (res.ok) {
         const data = await res.json();
         setOptions(data.options);
+        setShowResultOnWheelPage(data.showResultOnWheelPage !== false);
         showToast('Wheel settings updated and synced in real-time!', 'success');
       } else {
         const data = await res.json().catch(() => ({}));
@@ -478,6 +481,29 @@ export default function AdminDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
                   Add Wheel Option
+                </button>
+              </div>
+            </div>
+
+            {/* Controller Settings */}
+            <div className="bg-slate-900/60 border border-white/10 p-6 rounded-2xl shadow-xl backdrop-blur-xl">
+              <h2 className="text-xl font-bold text-white mb-2">Controller Settings</h2>
+              <p className="text-slate-400 text-xs mb-4">Control how the mobile/controller screen behaves during a spin.</p>
+              
+              <div className="flex items-center justify-between p-3.5 bg-slate-950/60 border border-white/5 rounded-xl">
+                <div className="pr-2">
+                  <span className="block text-sm font-semibold text-white">Show Results on Controller</span>
+                  <span className="block text-[10px] text-slate-500">Play video or show announcement on mobile right after spin.</span>
+                </div>
+                <button
+                  onClick={() => setShowResultOnWheelPage(!showResultOnWheelPage)}
+                  className={`shrink-0 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                    showResultOnWheelPage
+                      ? 'bg-purple-500/10 border-purple-500/30 text-purple-400'
+                      : 'bg-slate-800 border-white/10 text-slate-500'
+                  }`}
+                >
+                  {showResultOnWheelPage ? '🟢 Enabled' : '🔴 Disabled'}
                 </button>
               </div>
             </div>
